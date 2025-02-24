@@ -44,6 +44,21 @@ class ScorerDot(nn.Module):
         # dot product with einsum
         scores = torch.einsum('BD,BCD->BC', text_rep, label_rep)
         return scores
+
+class ScoreLabelActivation(nn.Module):
+    def __init__(self, hidden_size, *args):
+        super().__init__()
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1)
+        )
+        pass
+
+    def forward(self, text_rep, label_rep):
+        labels_rep = self.mlp(label_rep)
+        scores = scores.squeeze(-1)
+        return scores
     
 class MLPScorer(nn.Module):
     def __init__(self, hidden_size, mlp_hidden_size=256):
@@ -72,4 +87,4 @@ class MLPScorer(nn.Module):
         
         return scores
     
-SCORER2OBJECT = {"weighted-dot": ScorerWeightedDot, 'simple': ScorerDot, 'mlp': MLPScorer}
+SCORER2OBJECT = {"weighted-dot": ScorerWeightedDot, 'simple': ScorerDot, 'mlp': MLPScorer, "labels-activation": ScoreLabelActivation}
