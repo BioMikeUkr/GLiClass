@@ -16,14 +16,12 @@ class TextCompressionLayer(nn.Module):
             nn.Linear(hidden_size * 4, hidden_size),
         )
         self.norm2 = nn.LayerNorm(hidden_size)
-        self.alpha = nn.Parameter(torch.tensor(alpha))
 
     def forward(self, text_embeddings: torch.Tensor):
         B, L, D = text_embeddings.size()
 
-        pooled = text_embeddings.mean(dim=1, keepdim=True)  # (B, 1, D)
 
-        q = self.query_tokens.unsqueeze(0) + self.alpha * pooled  # (B, output_len, D)
+        q = self.query_tokens.unsqueeze(0).expand(B, -1, -1)  # (B, output_len, D)
 
         attn_output, _ = self.attn(q, text_embeddings, text_embeddings)  # (B, output_len, D)
 
@@ -100,23 +98,23 @@ class ScorerCrossAttentionLayer(nn.Module):
 class ScorerBlock(nn.Module):
     def __init__(self, hidden_size, num_heads=4, dropout=0.1):
         super().__init__()
-
         self.text_self_attn = ScorerSelfAttentionLayer(hidden_size, num_heads=num_heads, dropout=dropout)
         self.text_cross_attn = ScorerCrossAttentionLayer(hidden_size, num_heads=num_heads, dropout=dropout)
+        self.text_label_cross_attn = ScorerCrossAttentionLayer(hidden_size, num_heads=num_heads, dropout=dropout)
         self.label_self_attn = ScorerSelfAttentionLayer(hidden_size, num_heads=num_heads, dropout=dropout)
         self.label_cross_attn = ScorerCrossAttentionLayer(hidden_size, num_heads=num_heads, dropout=dropout)
     
     def forward(self, compressed_text_rep, text_rep, label_rep):
-        compressed_text_rep = self.text_self_attn(compressed_text_rep)
         compressed_text_rep = self.text_cross_attn(compressed_text_rep, text_rep)
         label_rep = self.label_self_attn(label_rep)
         label_rep = self.label_cross_attn(label_rep, compressed_text_rep)
-        compressed_text_rep = self.text_cross_attn(compressed_text_rep, label_rep)
+        compressed_text_rep = self.text_label_cross_attn(compressed_text_rep, label_rep)
+        compressed_text_rep = self.text_self_attn(compressed_text_rep)
         return compressed_text_rep, label_rep
 
 
 class MiniEncoderScorer(nn.Module):
-    def __init__(self, hidden_size=768, reduced_hidden_size=384, num_heads=4, dropout=0.1, num_blocks=3, alpha=0.5, n_pathes=64):
+    def __init__(self, hidden_size=768, reduced_hidden_size=128, num_heads=4, dropout=0.1, num_blocks=4, alpha=0.01, n_pathes=512):
         super().__init__()
         self.projection = nn.Linear(hidden_size, reduced_hidden_size)
         self.input_compression = TextCompressionLayer(reduced_hidden_size, num_heads=num_heads, dropout=dropout, alpha=alpha, n_pathes=n_pathes)
@@ -135,3 +133,4 @@ class MiniEncoderScorer(nn.Module):
         text_rep = compressed_text_rep[:, 0, :]
         scores = torch.einsum('BD,BCD->BC', text_rep, label_rep)
         return scores
+        
