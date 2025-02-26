@@ -116,7 +116,7 @@ class ScorerBlock(nn.Module):
 class MiniEncoderScorer(nn.Module):
     def __init__(self, hidden_size=768, reduced_hidden_size=384, num_heads=4, dropout=0.1, num_blocks=3, alpha=0.5, n_pathes=64):
         super().__init__()
-
+        self.projection = nn.Linear(hidden_size, reduced_hidden_size)
         self.input_compression = TextCompressionLayer(reduced_hidden_size, num_heads=num_heads, dropout=dropout, alpha=alpha, n_pathes=n_pathes)
         self.scorer_blocks = nn.ModuleList([ScorerBlock(reduced_hidden_size, num_heads=num_heads, dropout=dropout) for _ in range(num_blocks)])
         #self.output_compression = TextCompressionLayer(reduced_hidden_size, num_heads=num_heads, dropout=dropout, alpha=alpha, n_pathes=1)
@@ -133,4 +133,3 @@ class MiniEncoderScorer(nn.Module):
         text_rep = compressed_text_rep[:, 0, :]
         scores = torch.einsum('BD,BCD->BC', text_rep, label_rep)
         return scores
-        
