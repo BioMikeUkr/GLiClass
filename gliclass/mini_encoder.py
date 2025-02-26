@@ -101,11 +101,13 @@ class ScorerBlock(nn.Module):
     def __init__(self, hidden_size, num_heads=4, dropout=0.1):
         super().__init__()
 
+        self.text_self_attn = ScorerSelfAttentionLayer(hidden_size, num_heads=num_heads, dropout=dropout)
         self.text_cross_attn = ScorerCrossAttentionLayer(hidden_size, num_heads=num_heads, dropout=dropout)
         self.label_self_attn = ScorerSelfAttentionLayer(hidden_size, num_heads=num_heads, dropout=dropout)
         self.label_cross_attn = ScorerCrossAttentionLayer(hidden_size, num_heads=num_heads, dropout=dropout)
     
     def forward(self, compressed_text_rep, text_rep, label_rep):
+        compressed_text_rep = self.text_self_attn(compressed_text_rep)
         compressed_text_rep = self.text_cross_attn(compressed_text_rep, text_rep)
         label_rep = self.label_self_attn(label_rep)
         label_rep = self.label_cross_attn(label_rep, compressed_text_rep)
