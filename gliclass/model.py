@@ -310,12 +310,12 @@ class GLiClassUniEncoder(GLiClassBaseModel):
         else:
             encoder_layer = outputs[0]
 
-        classes_embedding, classes_embedding_mask, text_token_embeddongs, text_mask = self._extract_class_features(encoder_layer, 
+        classes_embedding, classes_embedding_mask, text_token_embeddings, text_mask = self._extract_class_features(encoder_layer, 
                                                                                                             input_ids, attention_mask)
         if self.config.use_lstm:
-            text_token_embeddongs = self.lstm(text_token_embeddongs, text_mask)
+            text_token_embeddings = self.lstm(text_token_embeddings, text_mask)
         
-        pooled_output = self.pooler(text_token_embeddongs)
+        pooled_output = self.pooler(text_token_embeddings)
         pooled_output = self.text_projector(pooled_output)
         pooled_output = self.dropout(pooled_output)
         if self.config.normalize_features:
@@ -324,8 +324,10 @@ class GLiClassUniEncoder(GLiClassBaseModel):
         classes_embedding = self.classes_projector(classes_embedding)
         if self.config.normalize_features:
             classes_embedding = classes_embedding / (classes_embedding.norm(p=2, dim=-1, keepdim=True)+self.epsilon)
-
-        logits = self.scorer(pooled_output, classes_embedding)
+        if self.config.scorer_type == 'mini-encoder':
+            logits = self.scorer(text_token_embeddings, classes_embedding)
+        else:
+            logits = self.scorer(pooled_output, classes_embedding)
 
         if self.config.normalize_features:
             logits = logits*self.logit_scale.to(classes_embedding.device)
