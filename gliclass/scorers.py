@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from .mini_encoder import MiniEncoder
+from .mini_encoder import MiniEncoderScorer
 
 class ScorerWeightedDot(nn.Module):
     def __init__(self, hidden_size, dropout=0.1):
@@ -105,4 +105,4 @@ class MLPScorer(nn.Module):
         
         return scores
     
-SCORER2OBJECT = {"weighted-dot": ScorerWeightedDot, 'simple': ScorerDot, 'mlp': MLPScorer, "labels-activation": ScorerLabelActivation, "dot-activation": ScorerDotActivation, "mini-encoder": MiniEncoder}
+SCORER2OBJECT = {"weighted-dot": ScorerWeightedDot, 'simple': ScorerDot, 'mlp': MLPScorer, "labels-activation": ScorerLabelActivation, "dot-activation": ScorerDotActivation, "mini-encoder": MiniEncoderScorer}
