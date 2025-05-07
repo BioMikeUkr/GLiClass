@@ -119,11 +119,31 @@ class HopfieldScorer(nn.Module):
         
         return scores
 
+class MaxSimScorer(nn.Module):
+    def __init__(self, *args):
+        super().__init__()
+        pass
 
+    def forward(self, class_embeddings, class_mask, text_embeddings, text_mask):
+        """
+        Input
+        -------
+        class_embeddings   : (batch_size, num_classes, max_class_seq_len, hidden_dim)
+        class_mask         : (batch_size, num_classes, max_class_seq_len)
+        text_embeddings    : (batch_size, max_text_seq_len, hidden_dim)
+        text_mask         : (batch_size, max_text_seq_len)
+        """
+
+        sim = torch.einsum('bcld,btd->bctl', class_embeddings, text_embeddings)
+        max_sim, _ = sim.max(dim=-1)
+
+        return max_sim.sum(dim=-1)
+    
 # Example dictionary for scorers
 SCORER2OBJECT = {
     "weighted-dot": ScorerWeightedDot, 
     "simple": ScorerDot, 
     "mlp": MLPScorer,
-    "hopfield": HopfieldScorer  # <-- Add reference here if you want
+    "hopfield": HopfieldScorer,
+    "maxsim": MaxSimScorer
 }
