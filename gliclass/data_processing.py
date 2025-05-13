@@ -135,7 +135,7 @@ class GLiClassDataset(Dataset):
             new_negatives = random.sample(self.dataset_labels, k=random.randint(1, max_negatives))
             example['all_labels'].extend(new_negatives)
 
-        if self.architecture_type == 'uni-encoder':
+        if self.architecture_type in {'uni-encoder', 'uni-encoder-maxsim'}:
             model_inputs = self.tokenize_and_prepare_labels_for_uniencoder(example)
         elif self.architecture_type == 'encoder-decoder':
             model_inputs = self.tokenize_and_prepare_labels_for_encoder_decoder(example)
