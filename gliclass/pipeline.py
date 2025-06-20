@@ -264,7 +264,7 @@ class ZeroShotClassificationPipeline:
                                 classification_type='multi-label', device='cuda:0', progress_bar=True):
         if isinstance(model, str):
             model = GLiClassBiEncoder.from_pretrained(model)
-        if model.config.architecture_type == 'uni-encoder':
+        if model.config.architecture_type in {'uni-encoder', 'uni-cross-encoder'}:
             self.pipe = UniEncoderZeroShotClassificationPipeline(model, tokenizer, max_classes, 
                                                                     max_length, classification_type, device, progress_bar)
         elif model.config.architecture_type in {'encoder-decoder'}:

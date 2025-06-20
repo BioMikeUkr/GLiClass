@@ -2,6 +2,7 @@ from transformers import AutoConfig
 from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import logging
 from transformers.models.auto import CONFIG_MAPPING
+from gliclass.cross_encoder_heads.config import CrossEncoderHeadConfig
 logger = logging.get_logger(__name__)
 
 
@@ -12,6 +13,7 @@ class GLiClassModelConfig(PretrainedConfig):
     def __init__(
         self,
         encoder_config = None,
+        cross_encoder_config = None,
         encoder_model=None,
         label_model_config=None,
         label_model_name=None,
@@ -49,9 +51,13 @@ class GLiClassModelConfig(PretrainedConfig):
             encoder_config = CONFIG_MAPPING[encoder_config["model_type"]](**encoder_config)
         elif encoder_config is None:
             encoder_config = CONFIG_MAPPING["deberta-v2"]()
-
+        if isinstance(cross_encoder_config, dict):
+            self.cross_encoder_config = CrossEncoderHeadConfig(**cross_encoder_config)
+        else:
+            self.cross_encoder_config = cross_encoder_config or CrossEncoderHeadConfig()
         self.encoder_config = encoder_config
         self.encoder_model_name = encoder_model
+        self.cross_encoder_config = cross_encoder_config
 
         if label_model_name is not None:
             if isinstance(label_model_config, dict):

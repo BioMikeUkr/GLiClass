@@ -18,8 +18,8 @@ class TestModel:
         self.model = None
         self.tokeinzer = None
         self.token=token
-        self.datasets = ["SetFit/CR", "SetFit/sst2", "SetFit/sst5", 'stanfordnlp/imdb',
-                         "SetFit/20_newsgroups", "SetFit/enron_spam", "AmazonScience/massive",
+        self.datasets = ["AmazonScience/massive", "SetFit/CR", "SetFit/sst2", "SetFit/sst5", 'stanfordnlp/imdb',
+                         "SetFit/20_newsgroups", "SetFit/enron_spam",
                          'PolyAI/banking77', 'takala/financial_phrasebank','ag_news', 'dair-ai/emotion',
                          "MoritzLaurer/cap_sotu", 'cornell-movie-review-data/rotten_tomatoes']
         self.pipeline = None
