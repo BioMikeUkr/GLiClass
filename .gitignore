@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 #custom
-models/
+/models/
 wandb/
 gradio_cached_examples/
 test.ipynb
