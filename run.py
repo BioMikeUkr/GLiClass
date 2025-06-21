@@ -14,9 +14,9 @@ results = pipeline([text, text], [labels, labels_2], threshold=0.01)[0] #because
 for result in results:
  print(result["label"], "=>", result["score"])
 
-# head = model.model.cross_encoder_head.save_pretrained("models/head")
-# print(head)
-from gliclass.cross_encoder_heads.models.deberta_v2 import DebertaV2CrossEncoderHead
+# # head = model.model.cross_encoder_head.save_pretrained("models/head")
+# # print(head)
+# from gliclass.cross_encoder_heads.models.deberta_v2 import DebertaV2CrossEncoderHead
 
-head = DebertaV2CrossEncoderHead.from_pretrained("models/head")
-print(head)
+# head = DebertaV2CrossEncoderHead.from_pretrained("models/head")
+# print(head)

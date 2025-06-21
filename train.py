@@ -56,7 +56,7 @@ def main(args):
         tokenizer = AutoTokenizer.from_pretrained(args.encoder_model_name, use_fast=False)
         encoder_config = AutoConfig.from_pretrained(args.encoder_model_name)
         cross_encoder_config = CrossEncoderHeadConfig(
-            active_layers=[-2, -1],  # Use the last two layers
+            active_layers=[-1],  # Use the last two layers
             z_steps=1,
             inner_batch_size=4,
             )

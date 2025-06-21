@@ -20,6 +20,17 @@ class MLPScorer(nn.Module):
         
         return scores
 
+class ScorerDot(nn.Module):
+    def __init__(self, hidden_size, *args):
+        super().__init__()
+        pass
+
+    def forward(self, text_rep, label_rep):
+        scores = torch.einsum('BCD,BCD->BC', text_rep, label_rep)
+        return scores
+    
+
 SCORER2OBJECT = {
     "mlp": MLPScorer,
+    "dot": ScorerDot
 }

@@ -4,9 +4,10 @@ import torch
 from typing import Tuple
 from abc import abstractmethod
 from dataclasses import dataclass
-from .scorers import MLPScorer
+from .scorers import MLPScorer, ScorerDot
 from .config import CrossEncoderHeadConfig
 from ..config import CrossEncoderHeadConfig, GLiClassModelConfig
+from ..layers import FeaturesProjector
 
 @dataclass
 class CrossEncoderHeadOutput(BaseModelOutput):
@@ -36,7 +37,11 @@ class BaseCrossEncoderHead(PreTrainedModel):
         self.active_layers = config.cross_encoder_config.active_layers
         self.z_steps = config.cross_encoder_config.z_steps
         self.inner_batch_size = config.cross_encoder_config.inner_batch_size
-        self.scorer = MLPScorer(hidden_size=self.config.hidden_size)
+        self.scorer = ScorerDot(hidden_size=self.config.hidden_size)
+
+        self.text_projector = FeaturesProjector(config)
+        self.classes_projector = FeaturesProjector(config)
+        self.dropaut = torch.nn.Dropout(0.2)
 
     def construct_premise_hypothesis_inputs(self, token_embeds: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> dict:
         batch_size, seq_len, hidden_dim = token_embeds.shape
@@ -122,39 +127,53 @@ class BaseCrossEncoderHead(PreTrainedModel):
             "cross_attention_mask": cross_attention_mask,
         }
 
-    def _extract_class_features(self, token_embeds: torch.Tensor, batch_mapping: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _extract_class_features(self, token_embeds: torch.Tensor, batch_mapping: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Extracts class token features from token embeddings using the provided mapping.
-
         Args:
             token_embeds: [num_pairs, seq_len, hidden_dim]
-            batch_mapping: [num_pairs, 5] — each row: (batch_idx, cls_start, cls_end, text_start, text_end)
-
+            batch_mapping: [num_pairs, 5] — (batch_idx, cls_start, cls_end, text_start, text_end)
         Returns:
-            cls_features: [batch_size, max_cls_len, hidden_dim]
-            cls_mask:     [batch_size, max_cls_len] — binary mask indicating valid positions
+            cls_features:  [batch_size, max_cls_len, hidden_dim]
+            cls_mask:      [batch_size, max_cls_len]
+            text_features: [batch_size, max_cls_len, hidden_dim]
+            text_mask:     [batch_size, max_cls_len]
         """
         device = token_embeds.device
         hidden_dim = token_embeds.size(-1)
 
         batch2cls = {}
+        batch2txt = {}
         for i in range(token_embeds.size(0)):
             b = int(batch_mapping[i, 0])
-            cls_repr = token_embeds[i, 0]  # assume first token is class token
+            cls_len = int(batch_mapping[i, 2] - batch_mapping[i, 1])
+            if token_embeds.size(1) > 1:
+                cls_repr = token_embeds[i, 1]
+            else:
+                cls_repr = token_embeds[i, 0]
+            txt_idx = 1 + cls_len
+            if token_embeds.size(1) > txt_idx:
+                txt_repr = token_embeds[i, txt_idx]
+            else:
+                txt_repr = torch.zeros(hidden_dim, dtype=token_embeds.dtype, device=device)
             batch2cls.setdefault(b, []).append(cls_repr)
+            batch2txt.setdefault(b, []).append(txt_repr)
 
         batch_size = max(batch2cls.keys()) + 1
         max_cls_len = max(len(v) for v in batch2cls.values())
 
         cls_features = torch.zeros(batch_size, max_cls_len, hidden_dim, dtype=token_embeds.dtype, device=device)
+        text_features = torch.zeros(batch_size, max_cls_len, hidden_dim, dtype=token_embeds.dtype, device=device)
         cls_mask = torch.zeros(batch_size, max_cls_len, dtype=torch.long, device=device)
+        text_mask = torch.zeros(batch_size, max_cls_len, dtype=torch.long, device=device)
 
         for b, cls_tokens in batch2cls.items():
             n = len(cls_tokens)
             cls_features[b, :n] = torch.stack(cls_tokens)
             cls_mask[b, :n] = 1
+            text_features[b, :n] = torch.stack(batch2txt[b])
+            text_mask[b, :n] = 1
 
-        return cls_features, cls_mask
+        return cls_features, cls_mask, text_features, text_mask
 
     @abstractmethod
     def _forward(
@@ -207,11 +226,13 @@ class BaseCrossEncoderHead(PreTrainedModel):
             return_dict=return_dict,
         )
 
-        cls_features, cls_mask = self._extract_class_features(
+        cls_features, cls_mask, text_features, text_mask = self._extract_class_features(
             token_embeds=outputs.cross_embeddings,
             batch_mapping=outputs.batch_mapping,
         )
-        scores = self.scorer(cls_features, cls_mask)
+        text_features = self.dropaut(self.text_projector(text_features))
+
+        scores = self.scorer(cls_features, text_features)
 
         return CrossEncoderHeadOutput(
             last_hidden_state=outputs.last_hidden_state,
