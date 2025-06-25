@@ -1,6 +1,7 @@
 from transformers import AutoConfig
 from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import logging
+from transformers import LlamaConfig
 from transformers.models.auto import CONFIG_MAPPING
 logger = logging.get_logger(__name__)
 
@@ -12,6 +13,7 @@ class GLiClassModelConfig(PretrainedConfig):
     def __init__(
         self,
         encoder_config = None,
+        decoder_config=None,
         encoder_model=None,
         label_model_config=None,
         label_model_name=None,
@@ -86,7 +88,9 @@ class GLiClassModelConfig(PretrainedConfig):
             self.text_token_index = self.vocab_size+1
         else:
             self.text_token_index = text_token_index
-
+        if isinstance(decoder_config, dict):
+            decoder_config = CONFIG_MAPPING[decoder_config["model_type"]](**decoder_config)
+        self.decoder_config = decoder_config            
         self.ignore_index = ignore_index
         self.projector_hidden_act = projector_hidden_act
         self.problem_type = problem_type

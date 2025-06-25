@@ -242,9 +242,177 @@ class GLiClassBaseModel(nn.Module):#):
                 loss = loss+contrastive_loss*self.config.contrastive_loss_coef
         return loss
     
+# class GLiClassUniEncoder(GLiClassBaseModel):
+#     def __init__(self, config: GLiClassModelConfig, from_pretrained = False):
+#         super().__init__(config)
+#         if config.encoder_config is None:
+#             if config.encoder_model_name is None:
+#                 raise ValueError("You need to specify encoder model name to use it as a backbone.")
+#             config.encoder_config = AutoConfig.from_pretrained(config.encoder_model_name)
+
+#         config_name = config.encoder_config.__class__.__name__
+
+#         if config_name in DECODER_MODEL_MAPPING:
+#             if not IS_LLM2VEC:
+#                 raise MissedPackageException(f"The llm2vec package must be installed to use this decoder model: {config_name}")
+#             else:
+#                 print('Loading decoder model using LLM2Vec...')
+#                 ModelClass = DECODER_MODEL_MAPPING[config_name]
+#             decoder = True
+#         elif config_name in {'T5Config', 'MT5Config'}:
+#             decoder = False
+#             ModelClass = T5EncoderModel
+#         elif config_name in {'DebertaV2Config'}:
+#             decoder = False
+#             ModelClass = DebertaV2Model
+#         else:
+#             decoder = False
+#             ModelClass = AutoModel
+
+#         if from_pretrained:
+#             self.encoder_model = ModelClass.from_pretrained(
+#                 config.encoder_model_name
+#             )
+#         else:
+#             if decoder:
+#                 self.encoder_model = ModelClass(config.encoder_config)
+#             else:
+#                 if config_name in {'T5Config', 'MT5Config', 'DebertaV2Config'}:
+#                     self.encoder_model = ModelClass._from_config(
+#                         config.encoder_config
+#                     )
+#                 else:
+#                     self.encoder_model = ModelClass.from_config(
+#                         config.encoder_config
+#                     )
+
+#         adapter_config_file = Path(config.encoder_model_name) / "adapter_config.json"
+
+#         if adapter_config_file.exists():
+#             if not IS_PEFT:
+#                 warnings.warn(f"Adapter configs were detected, if you want to apply them you need to install peft package.")
+#             else:
+#                 adapter_config = LoraConfig.from_pretrained(config.encoder_model_name)
+#                 self.encoder_model = get_peft_model(self.encoder_model, adapter_config)
+
+#     def process_encoder_output(self, input_ids, attention_mask, encoder_layer, labels = None):
+#         classes_embedding, classes_embedding_mask, text_token_embeddings, text_mask = self._extract_class_features(encoder_layer, 
+#                                                                                                             input_ids, attention_mask)
+#         if self.config.use_lstm:
+#             text_token_embeddings = self.lstm(text_token_embeddings, text_mask)
+        
+#         pooled_output = self.pooler(text_token_embeddings)
+#         pooled_output = self.text_projector(pooled_output)
+#         pooled_output = self.dropout(pooled_output)
+#         if self.config.normalize_features:
+#             pooled_output = pooled_output / (pooled_output.norm(p=2, dim=-1, keepdim=True)+self.epsilon)
+
+#         classes_embedding = self.classes_projector(classes_embedding)
+#         if self.config.normalize_features:
+#             classes_embedding = classes_embedding / (classes_embedding.norm(p=2, dim=-1, keepdim=True)+self.epsilon)
+
+#         logits = self.scorer(pooled_output, classes_embedding)
+
+#         if self.config.normalize_features:
+#             logits = logits*self.logit_scale.to(classes_embedding.device)
+        
+#         loss = self.get_loss(logits, labels, classes_embedding, classes_embedding_mask)
+#         return (logits, loss, pooled_output, classes_embedding)
+    
+#     def forward(
+#         self,
+#         input_ids: Optional[torch.Tensor] = None,
+#         attention_mask: Optional[torch.Tensor] = None,
+#         inputs_embeds: Optional[torch.Tensor] = None,
+#         labels: Optional[torch.Tensor] = None,
+#         output_attentions: Optional[bool] = None,
+#         output_hidden_states: Optional[bool] = None,
+#         output_text_embeddings: Optional[bool] = None,
+#         output_class_embeddings:  Optional[bool] = None,
+#         return_dict: Optional[bool] = None,
+#         **kwargs
+#     ) -> Union[Tuple, GLiClassOutput]:
+#         r"""
+#         labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
+#             Labels for computing the sequence classification/regression loss. Indices should be in `[0, ...,
+#             config.num_labels - 1]`. If `config.num_labels == 1` a regression loss is computed (Mean-Square loss), If
+#             `config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+#         """
+#         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+#         if self.config.squeeze_layers or self.config.layer_wise:
+#             output_hidden_states = True
+#             return_dict = True
+
+#         outputs = self.encoder_model(
+#             input_ids,
+#             attention_mask=attention_mask,
+#             # inputs_embeds=inputs_embeds,
+#             output_attentions=output_attentions,
+#             output_hidden_states=output_hidden_states,
+#             return_dict=return_dict,
+#             **kwargs
+#         )
+
+#         if self.config.layer_wise and labels is not None:
+#             hidden_states = outputs.hidden_states
+#             loss = 0
+#             for encoder_layer in hidden_states:
+#                 logits, layer_loss, pooled_output, classes_embedding = self.process_encoder_output(input_ids, attention_mask, encoder_layer, labels)
+#                 loss+=layer_loss
+#         else:
+#             if self.config.encoder_layer_id==-1:
+#                 if self.config.squeeze_layers:
+#                     encoder_layer = self.layer_wise_attention(outputs.hidden_states)
+#                 else:
+#                     encoder_layer = outputs[0]
+#             else:
+#                 encoder_layer = outputs.hidden_states[self.config.encoder_layer_id]
+#             logits, loss, pooled_output, classes_embedding = self.process_encoder_output(input_ids, attention_mask, encoder_layer, labels)
+
+#         if not return_dict:
+#             output = (logits,) + outputs[1:]
+#             return ((loss,) + output) if loss is not None else output
+
+#         return GLiClassOutput(
+#             loss=loss, logits=logits, 
+#             hidden_states=outputs.hidden_states, 
+#             attentions=outputs.attentions,
+#             text_embeddings= pooled_output if output_text_embeddings else None,
+#             class_embeddings= classes_embedding if output_class_embeddings else None,
+#         )
+    
+from transformers import LlamaForCausalLM, LlamaConfig
+
+class DecoderFeaturesProjector(nn.Module):
+    def __init__(self, config: GLiClassModelConfig):
+        super().__init__()
+
+        self.linear_1 = nn.Linear(config.encoder_config.hidden_size, config.hidden_size, bias=True)
+        self.act = ACT2FN[config.projector_hidden_act]
+        self.linear_2 = nn.Linear(config.hidden_size, config.decoder_config.hidden_size, bias=True)
+
+    def forward(self, features):
+        hidden_states = self.linear_1(features)
+        hidden_states = self.act(hidden_states)
+        hidden_states = self.linear_2(hidden_states)
+        return hidden_states
+    
 class GLiClassUniEncoder(GLiClassBaseModel):
     def __init__(self, config: GLiClassModelConfig, from_pretrained = False):
+        if isinstance(getattr(config, "decoder_config", None), dict):
+            config.decoder_config = LlamaConfig(**config.decoder_config)
         super().__init__(config)
+
+        if getattr(config, "decoder_config", None):
+            self.decoder_model = LlamaForCausalLM(config.decoder_config)
+            self.decoder_embedding = nn.Embedding(
+                config.vocab_size, 
+                config.decoder_config.hidden_size, 
+                padding_idx=config.decoder_config.pad_token_id
+            )
+            self.encoder2decoder_projector = DecoderFeaturesProjector(config)
+
         if config.encoder_config is None:
             if config.encoder_model_name is None:
                 raise ValueError("You need to specify encoder model name to use it as a backbone.")
@@ -298,6 +466,7 @@ class GLiClassUniEncoder(GLiClassBaseModel):
     def process_encoder_output(self, input_ids, attention_mask, encoder_layer, labels = None):
         classes_embedding, classes_embedding_mask, text_token_embeddings, text_mask = self._extract_class_features(encoder_layer, 
                                                                                                             input_ids, attention_mask)
+
         if self.config.use_lstm:
             text_token_embeddings = self.lstm(text_token_embeddings, text_mask)
         
@@ -318,6 +487,121 @@ class GLiClassUniEncoder(GLiClassBaseModel):
         
         loss = self.get_loss(logits, labels, classes_embedding, classes_embedding_mask)
         return (logits, loss, pooled_output, classes_embedding)
+    
+    def _prepare_decoder_inputs(
+            self,
+            token_embeds: torch.Tensor,     # (B, S, H)
+            input_ids: torch.Tensor,        # (B, S)
+            attention_mask: torch.Tensor    # (B, S)
+    ) -> dict:
+        """
+        Prepares decoder inputs and labels for teacher forcing.
+
+        - decoder_input_ids  — excludes the EOS token;
+        - labels             — shifted by 1, includes EOS;
+        - decoder_embeddings — generated using self.decoder_embedding,
+                                with the first embedding replaced by one
+                                taken from the encoder output.
+        """
+
+        B, S, H = token_embeds.shape
+        dev = token_embeds.device
+
+        # --- Special token indices ---------------------------------------------
+        cls_mask = input_ids == self.config.class_token_index
+        txt_mask = input_ids == self.config.text_token_index
+
+        cls_b, cls_i = torch.where(cls_mask)
+        txt_b, txt_i = torch.where(txt_mask)
+        eos_pos = S - attention_mask.flip(1).float().argmax(1) - 1  # (B,)
+
+        # -----------------------------------------------------------------------
+        seg_ids, seg_embeds, seg_attn, first_embeds = [], [], [], []
+
+        for b in range(B):
+            cls_idx = cls_i[cls_b == b]
+            bos = txt_i[b]
+            eos = eos_pos[b].item()  # EOS is excluded
+            if cls_idx.numel():
+                splits = torch.cat([cls_idx, bos.unsqueeze(0)], 0)
+                for s, e in zip(splits[:-1], splits[1:]):
+                    seg_ids.append(input_ids[b, s:e])
+                    seg_embeds.append(token_embeds[b, s:e])
+                    seg_attn.append(attention_mask[b, s:e])
+                    first_embeds.append(token_embeds[b, s])
+
+            seg_ids.append(input_ids[b, bos:eos])
+            seg_embeds.append(token_embeds[b, bos:eos])
+            seg_attn.append(attention_mask[b, bos:eos])
+            first_embeds.append(token_embeds[b, bos])
+
+        # ------------------- Sequence padding ----------------------------------
+        max_len = max(x.size(0) for x in seg_ids) + 1  # +1 for EOS
+
+        def _pad(t_list, pad_val=0):
+            return torch.stack([torch.cat([t, t.new_full((max_len - t.size(0),), pad_val)])
+                                for t in t_list])
+
+        ids_out = _pad(seg_ids, pad_val=0)
+        attn_out = _pad(seg_attn, pad_val=0)
+
+        # ------------------------- Labels with EOS -----------------------------
+        eos_id = input_ids[(torch.arange(B, device=dev), eos_pos)].unique().item()
+        labels = ids_out.clone()
+        seq_len = attn_out.sum(1)
+
+        ids_out_scatter_idx = seq_len.unsqueeze(1)
+        labels.scatter_(1, ids_out_scatter_idx, eos_id)
+
+        # --- Shift for teacher forcing (BOS is dropped, EOS is predicted) ------
+        decoder_input_ids = ids_out[:, :-1]
+        decoder_attn = attn_out[:, :-1]
+        labels = labels[:, 1:]
+        labels[decoder_attn == 0] = -100
+
+        # ---------------- Embedding via decoder embedding layer ----------------
+        # assert decoder_input_ids.max() < self.decoder_embedding.num_embeddings, f"Found index {decoder_input_ids.max().item()} >= vocab size {self.decoder_embedding.num_embeddings}"
+        # assert decoder_input_ids.min() >= 0, f"Found negative index {decoder_input_ids.min().item()}"
+
+        decoder_embeds = self.decoder_embedding(decoder_input_ids)
+
+        first_embeds_t = torch.stack(first_embeds)
+        batch_idx = torch.arange(decoder_embeds.size(0), device=dev)
+        decoder_embeds = decoder_embeds.clone()
+        decoder_embeds[batch_idx, 0, :] = first_embeds_t
+
+        # --------------------------- Debug prints ------------------------------
+        # print(f"Input IDs shape: {decoder_input_ids.shape}, "
+        #       f"Embeddings shape: {decoder_embeds.shape}, "
+        #       f"Attention mask shape: {decoder_attn.shape}, "
+        #       f"Labels shape: {labels.shape}")
+        # print(f"Input IDs: {decoder_input_ids}, "
+        #       f"Embeddings: {decoder_embeds}, "
+        #       f"Attention mask: {decoder_attn}, "
+        #       f"Labels: {labels}")
+
+        # ----------------------------- Output ----------------------------------
+        return decoder_input_ids, decoder_embeds, decoder_attn, labels
+
+    
+    def causal_forward(self, token_embeds, input_ids, attention_mask):
+        token_embeds = self.encoder2decoder_projector(token_embeds)
+        decoder_input_ids, decoder_embeds, decoder_attn, labels = self._prepare_decoder_inputs(
+            token_embeds, input_ids, attention_mask
+        )
+
+        outputs = self.decoder_model(
+            attention_mask=decoder_attn,
+            inputs_embeds=decoder_embeds,
+            labels=labels,
+            output_hidden_states=False,
+            return_dict=True
+        )
+
+        loss = outputs.loss
+
+        return loss
+
     
     def forward(
         self,
@@ -369,10 +653,14 @@ class GLiClassUniEncoder(GLiClassBaseModel):
             else:
                 encoder_layer = outputs.hidden_states[self.config.encoder_layer_id]
             logits, loss, pooled_output, classes_embedding = self.process_encoder_output(input_ids, attention_mask, encoder_layer, labels)
+            decoder_loss = self.causal_forward(encoder_layer, input_ids, attention_mask) if self.config.decoder_config else None
+            print(f"Decoder loss: {decoder_loss}")
+            loss = loss + decoder_loss if decoder_loss is not None else loss
 
         if not return_dict:
             output = (logits,) + outputs[1:]
             return ((loss,) + output) if loss is not None else output
+
 
         return GLiClassOutput(
             loss=loss, logits=logits, 
@@ -381,7 +669,6 @@ class GLiClassUniEncoder(GLiClassBaseModel):
             text_embeddings= pooled_output if output_text_embeddings else None,
             class_embeddings= classes_embedding if output_class_embeddings else None,
         )
-
 
 class GLiClassEncoderDecoder(GLiClassBaseModel):
     def __init__(self, config: GLiClassModelConfig, from_pretrained = False):

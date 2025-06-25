@@ -123,6 +123,21 @@ class GLiClassDataset(Dataset):
         tokenized_inputs['labels_mask'] = torch.ones(len(class_texts))
         tokenized_inputs['labels'] = self.prepare_labels(example, label2idx, self.problem_type)
         return tokenized_inputs
+    
+    def tokenize_and_prepare_labels_for_cls_decoder(self, example):
+        if self.shuffle_labels:
+            random.shuffle(example['all_labels'])
+        class_texts = self.prepare_prompt(example)
+        class_texts = ''.join(class_texts)
+
+        label2idx = {label: idx for idx, label in enumerate(example['all_labels'])}
+
+        tokenized_inputs = self.tokenize(example['text'])
+        tokenized_classes = self.tokenize(class_texts)
+        tokenized_inputs["class_input_ids"] = tokenized_classes["input_ids"]
+        tokenized_inputs["class_attention_mask"] = tokenized_classes["attention_mask"]   
+        tokenized_inputs['labels'] = self.prepare_labels(example, label2idx, self.problem_type)
+        return tokenized_inputs
 
     def __len__(self):
         return len(self._data)
