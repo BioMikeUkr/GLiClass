@@ -10,7 +10,7 @@ class GLiClassDataset(Dataset):
                             architecture_type = 'uni-encoder',
                             prompt_first=False,
                             get_negatives = False,
-                            max_labels = 50,
+                            max_labels = 100,
                             labels_tokenizer=None,
                             shuffle_labels = True):
         self.tokenizer = tokenizer

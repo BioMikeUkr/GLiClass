@@ -10,6 +10,18 @@ import argparse
 
 device = torch.device('cuda:0') if torch.cuda.is_available else torch.device('cpu')
 
+test_1 = ["SetFit/CR", "SetFit/sst2", "SetFit/sst5", 'stanfordnlp/imdb',
+                         "SetFit/20_newsgroups", "SetFit/enron_spam", "AmazonScience/massive",
+                         'PolyAI/banking77', 'takala/financial_phrasebank','ag_news', 'dair-ai/emotion',
+                         "MoritzLaurer/cap_sotu", 'cornell-movie-review-data/rotten_tomatoes']
+# test_1 = ["SetFit/CR", "SetFit/sst2", "SetFit/sst5",
+#                          "SetFit/20_newsgroups", "SetFit/enron_spam", "AmazonScience/massive",
+#                          'PolyAI/banking77', 'takala/financial_phrasebank','ag_news', 'dair-ai/emotion',
+#                          "MoritzLaurer/cap_sotu", 'cornell-movie-review-data/rotten_tomatoes']
+test_2 = ["AmazonScience/massive", "PolyAI/banking77"]
+test = test_1
+LIMIT = 10000000000
+LIMIT = 256 
 
 class TestModel:
 
@@ -18,10 +30,7 @@ class TestModel:
         self.model = None
         self.tokeinzer = None
         self.token=token
-        self.datasets = ["SetFit/CR", "SetFit/sst2", "SetFit/sst5", 'stanfordnlp/imdb',
-                         "SetFit/20_newsgroups", "SetFit/enron_spam", "AmazonScience/massive",
-                         'PolyAI/banking77', 'takala/financial_phrasebank','ag_news', 'dair-ai/emotion',
-                         "MoritzLaurer/cap_sotu", 'cornell-movie-review-data/rotten_tomatoes']
+        self.datasets = test
         self.pipeline = None
 
         self.macro_scores = []
@@ -67,6 +76,7 @@ class TestModel:
                 classes = list(set(classes))
                 if split is not None:
                     classes = [' '.join(class_.split(split)) for class_ in classes]
+        test_dataset = test_dataset.shuffle(seed=42)
         texts = test_dataset[text_column]
         true_labels = test_dataset[label_column]
         # if isinstance(test_dataset.features[label_column], ClassLabel):
@@ -74,7 +84,7 @@ class TestModel:
         if type(true_labels[0]) == int:
             true_labels = [classes[label] for label in true_labels]
 
-        return texts, classes, true_labels
+        return texts[:LIMIT], classes, true_labels[:LIMIT]
 
     def get_gliclass_predictions(self, test_texts, classes, batch_size=8):
         results = self.pipeline(test_texts, classes, batch_size=batch_size)

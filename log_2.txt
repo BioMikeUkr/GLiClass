@@ -1,0 +1,7 @@
+Dataset size: 8182
+Dataset is shuffled...
+Dataset is splitted...
+Total labels:  220619
+Total labels:  42909
+{'loss': 2.6758, 'grad_norm': 6.188486576080322, 'learning_rate': 1.2987012987012986e-06, 'epoch': 0.01}
+{'loss': 2.825, 'grad_norm': 3.762132167816162, 'learning_rate': 2.597402597402597e-06, 'epoch': 0.02}

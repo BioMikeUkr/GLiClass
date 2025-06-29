@@ -50,26 +50,44 @@ def main(args):
         model = GLiClassModel.from_pretrained(args.model_name, focal_loss_alpha=args.focal_loss_alpha,
                                                                 focal_loss_gamma=args.focal_loss_gamma,
                                                                 focal_loss_reduction=args.focal_loss_reduction)
-        tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+        tokenizer = AutoTokenizer.from_pretrained(args.model_name, add_prefix_space=True)
     else:
-        tokenizer = AutoTokenizer.from_pretrained(args.encoder_model_name)
+        tokenizer = AutoTokenizer.from_pretrained(args.encoder_model_name, add_prefix_space=True)
         encoder_config = AutoConfig.from_pretrained(args.encoder_model_name)
         label_model_config = None
         if args.label_model_name is not None:
             label_model_config = AutoConfig.from_pretrained(args.label_model_name)
         from transformers import LlamaConfig
+        print("padding token id:", tokenizer.pad_token_id)
+        print("bos token id:", tokenizer.bos_token_id)
+        print("eos token id:", tokenizer.eos_token_id)
+        print("vocab size:", tokenizer.vocab_size)
 
+        special_tokens = {
+                'pad_token': None,
+                'bos_token': None,
+                'eos_token': None,
+            }
+        for token, token_id in special_tokens.items():
+            if token_id is None:
+                try:
+                    special_tokens[token] = getattr(tokenizer, token + '_id')
+                except AttributeError:
+                    special_tokens[token] = encoder_config.get(token + '_id', None)
+   
         decoder_config = LlamaConfig(
-            vocab_size=tokenizer.vocab_size,
-            hidden_size=384,
-            num_hidden_layers=4,
-            num_attention_heads=6,
+            vocab_size=encoder_config.vocab_size + 3,
+            hidden_size=512,
+            num_hidden_layers=6,
+            num_attention_heads=8,
             intermediate_size=1024,
-            max_position_embeddings=1024,
-            pad_token_id=tokenizer.pad_token_id,
-            bos_token_id=tokenizer.bos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
+            max_position_embeddings=64,
+            pad_token_id=special_tokens['pad_token'],
+            bos_token_id=special_tokens['bos_token'],
+            eos_token_id=special_tokens['eos_token'],
+            rope_theta=4000
         )
+        # decoder_config = None
         glicalss_config = GLiClassModelConfig(
             decoder_config=decoder_config,
             encoder_config=encoder_config,
@@ -97,7 +115,7 @@ def main(args):
 
         model = GLiClassModel(glicalss_config, from_pretrained=True)
 
-        if args.architecture_type in  {'uni-encoder', 'bi-encoder-fused', 'encoder-decoder'}:
+    if args.architecture_type in  {'uni-encoder', 'bi-encoder-fused', 'encoder-decoder'}:
             new_words = ["<<LABEL>>", "<<SEP>>"]
             tokenizer.add_tokens(new_words, special_tokens=True)
             model.resize_token_embeddings(len(tokenizer))
@@ -123,7 +141,7 @@ def main(args):
     random.shuffle(data)    
     print('Dataset is shuffled...')
 
-    train_data = data[:int(len(data)*0.9)]
+    train_data = data[:int(len(data)*1)]
     test_data = data[int(len(data)*0.9):]
 
     print('Dataset is splitted...')
@@ -156,6 +174,7 @@ def main(args):
         use_cpu = False,
         report_to="none",
         fp16=args.fp16,
+        # gradient_accumulation_steps=2
         )
 
     trainer = Trainer(
@@ -168,14 +187,18 @@ def main(args):
         compute_metrics=compute_metrics,
     )
     trainer.train()
-
+# 'knowledgator/gliclass-v2.0'
+# answerdotai/ModernBERT-base
+# microsoft/deberta-v3-small
+# "knowledgator/gliclass-modern-base-v2.0-init"
+# knowledgator/gliclass-base-v1.0-lw
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', type=str, default= None)
+    parser.add_argument('--model_name', type=str, default= "checkpoint-217200")
     parser.add_argument('--label_model_name', type=str, default = None)
     parser.add_argument('--encoder_model_name', type=str, default = 'microsoft/deberta-v3-small')
     parser.add_argument('--save_path', type=str, default = 'models/')
-    parser.add_argument('--data_path', type=str, default = 'BioMike/fineweb-text-classification')
+    parser.add_argument('--data_path', type=str, default = 'gliclass_fineweb_dataset_4k.json')
     parser.add_argument('--problem_type', type=str, default='multi_label_classification')
     parser.add_argument('--pooler_type', type=str, default='first')
     parser.add_argument('--scorer_type', type=str, default='simple')
@@ -188,22 +211,22 @@ if __name__ == '__main__':
     parser.add_argument('--layer_wise', type=bool, default=False)
     parser.add_argument('--encoder_layer_id', type=int, default=-1)
     parser.add_argument('--shuffle_labels', type=bool, default=True)
-    parser.add_argument('--num_epochs', type=int, default=1)
-    parser.add_argument('--batch_size', type=int, default=2)
+    parser.add_argument('--num_epochs', type=int, default=3)
+    parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--encoder_lr', type=float, default=1e-5)
-    parser.add_argument('--others_lr', type=float, default=3e-5)
+    parser.add_argument('--others_lr', type=float, default=2e-5)
     parser.add_argument('--encoder_weight_decay', type=float, default=0.01)
     parser.add_argument('--others_weight_decay', type=float, default=0.01)
     parser.add_argument('--warmup_ratio', type=float, default=0.05)
     parser.add_argument('--lr_scheduler_type', type=str, default='cosine')
-    parser.add_argument('--focal_loss_alpha', type=float, default=-1)
+    parser.add_argument('--focal_loss_alpha', type=float, default=0.6)
     parser.add_argument('--focal_loss_gamma', type=float, default=-1)
     parser.add_argument('--focal_loss_reduction', type=str, default='mean', choices=['none', 'mean', 'sum'])
     parser.add_argument('--contrastive_loss_coef', type=float, default=0.)
-    parser.add_argument('--max_length', type=int, default=2048)
-    parser.add_argument('--save_steps', type=int, default=1000)
+    parser.add_argument('--max_length', type=int, default=1024)
+    parser.add_argument('--save_steps', type=int, default=100)
     parser.add_argument('--save_total_limit', type=int, default=3)
-    parser.add_argument('--num_workers', type=int, default=8)
+    parser.add_argument('--num_workers', type=int, default=16)
     parser.add_argument('--fp16', type=bool, default=False)
     args = parser.parse_args()
 

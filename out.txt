@@ -1,0 +1,28 @@
+SetFit/CR
+{'micro': 0.75390625, 'macro': 0.7522390352561641, 'weighted': 0.7573200706659498}
+SetFit/sst2
+{'micro': 0.7421875, 'macro': 0.7363789552518255, 'weighted': 0.7369903810147913}
+SetFit/sst5
+{'micro': 0.3671875, 'macro': 0.2389252771430989, 'weighted': 0.2971045421849877}
+stanfordnlp/imdb
+positive ['negative', 'positive']
+{'micro': 0.70703125, 'macro': 0.6811002042951817, 'weighted': 0.6839419627285864}
+SetFit/20_newsgroups
+{'micro': 0.10546875, 'macro': 0.08547747574063362, 'weighted': 0.08780924165381403}
+SetFit/enron_spam
+{'micro': 0.52734375, 'macro': 0.49258767834619227, 'weighted': 0.502962625108523}
+AmazonScience/massive
+{'micro': 0.05859375, 'macro': 0.02543910315063817, 'weighted': 0.04547128608522473}
+PolyAI/banking77
+{'micro': 0.01953125, 'macro': 0.001901111344937819, 'weighted': 0.003947296764923989}
+takala/financial_phrasebank
+{'micro': 0.51953125, 'macro': 0.4600327332242226, 'weighted': 0.5055183612929623}
+ag_news
+{'micro': 0.57421875, 'macro': 0.49926984997642354, 'weighted': 0.5138540929900787}
+dair-ai/emotion
+{'micro': 0.5234375, 'macro': 0.3888214682605087, 'weighted': 0.5337738780771517}
+MoritzLaurer/cap_sotu
+{'micro': 0.16015625, 'macro': 0.21074102133690467, 'weighted': 0.1614410255839679}
+cornell-movie-review-data/rotten_tomatoes
+{'micro': 0.6875, 'macro': 0.6870224341341158, 'weighted': 0.6863538419218779}
+Average Score: 0.40461048826621904
