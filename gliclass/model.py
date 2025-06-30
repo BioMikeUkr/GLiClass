@@ -375,14 +375,12 @@ class GLiClassUniEncoder(GLiClassBaseModel):
         B, S, H = token_embeds.shape
         dev = token_embeds.device
 
-        # ------ спец-токены ------------------------------------------------------
         cls_mask = input_ids == self.config.class_token_index
         txt_mask = input_ids == self.config.text_token_index
         cls_b, cls_i = torch.where(cls_mask)
         txt_b, txt_i = torch.where(txt_mask)
         eos_pos = S - attention_mask.flip(1).float().argmax(1) - 1  # (B,)
 
-        # ------ берём только классы ---------------------------------------------
         seg_ids, seg_attn, first_embeds = [], [], []
         for b in range(B):
             cls_idx = cls_i[cls_b == b]
@@ -398,7 +396,6 @@ class GLiClassUniEncoder(GLiClassBaseModel):
         if not seg_ids:
             raise ValueError("No class segments found in batch")
 
-        # ------ паддинг (+1 под будущий EOS) ------------------------------------
         max_len = max(t.size(0) for t in seg_ids) + 1
         def _pad(lst, val=0):
             return torch.stack([
@@ -408,32 +405,28 @@ class GLiClassUniEncoder(GLiClassBaseModel):
         ids_out  = _pad(seg_ids)
         attn_out = _pad(seg_attn)
 
-        # ------ labels с EOS -----------------------------------------------------
         # eos_id  = input_ids[torch.arange(B, device=dev), eos_pos].unique().item()
         eos_id = -100
         labels  = ids_out.clone()
-        seq_len = attn_out.sum(1).long()                     # длина сегмента
+        seq_len = attn_out.sum(1).long()                     
         batch_row = torch.arange(labels.size(0), device=dev)
-        labels [batch_row, seq_len] = eos_id                 # ставим EOS
-        attn_out[batch_row, seq_len] = 1                     # EOS – не падд
-        labels[attn_out == 0] = -100                         # маска паддинга
+        labels [batch_row, seq_len] = eos_id                 
+        attn_out[batch_row, seq_len] = 1                    
+        labels[attn_out == 0] = -100                      
 
-        # ------ teacher-forcing shift -------------------------------------------
-        decoder_input_ids = ids_out  [:, :-1]                # без EOS
+        decoder_input_ids = ids_out  [:, :-1]                
         decoder_attn      = attn_out[:, :-1]
-        labels            = labels   [:, 1:]                 # без первого
+        labels            = labels   [:, 1:]                 
         labels[decoder_attn == 0] = -100
 
-        # ------ эмбеддинги -------------------------------------------------------
         decoder_embeds = self.decoder_embedding(decoder_input_ids).clone()
         decoder_embeds[batch_row, 0, :] = torch.stack(first_embeds)
 
-        # ------ debug-принты -----------------------------------------------------
-        print("Decoder input IDs:",        decoder_input_ids)
-        print("Decoder attention mask:",   decoder_attn)
-        print("Decoder embeddings shape:", decoder_embeds.shape)
-        print("Labels shape:",             labels.shape)
-        print("Label:",                    labels)
+        # print("Decoder input IDs:",        decoder_input_ids)
+        # print("Decoder attention mask:",   decoder_attn)
+        # print("Decoder embeddings shape:", decoder_embeds.shape)
+        # print("Labels shape:",             labels.shape)
+        # print("Label:",                    labels)
 
         return decoder_input_ids, decoder_embeds, decoder_attn, labels
 
